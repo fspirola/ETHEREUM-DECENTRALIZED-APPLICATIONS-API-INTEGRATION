@@ -1732,3 +1732,459 @@ npm install
 node server.js
 
 http://localhost:3300/
+
+Para usar com o metamask
+Comentar a linha 1 do index.js
+Acrescentar na linha 2
+provider = new ethers.providers.Web3Provider(web3.currentProvider);
+
+**********************************
+Token
+
+https://www.trufflesuite.com/boxes/tutorialtoken
+https://www.trufflesuite.com/tutorials/robust-smart-contracts-with-openzeppelin
+https://github.com/truffle-box/tutorialtoken-box/tree/develop
+
+em C:\ETH
+cd C:\ETH
+criar se nao existir C:\ETH
+
+mkdir token
+cd token
+
+truffle unbox tutorialtoken
+
+ren truffle.js truffle-config.js
+
+del node_modules /Q
+del package-lock.json
+npm install
+
+
+https://www.npmjs.com/package/@openzeppelin/contracts
+npm install -e @openzeppelin/contracts
+
+Abrir no visual code
+code .
+
+Arquivo truffle-config.js
+module.exports = {
+ networks: {
+   development: {
+     host: "127.0.0.1",
+     port: 8545,
+     network_id: "*"
+   }
+ },
+ compilers: {
+   solc: {
+     version: "0.5.2",
+   }
+ }
+}
+
+Migrations.sol
+diretorio contracts, arquivo Migrations.sol
+
+pragma solidity >=0.4.21 <0.7.0;
+ 
+contract Migrations {
+ address public owner;
+ uint public last_completed_migration;
+ 
+ modifier restricted() {
+   if (msg.sender == owner) _;
+ }
+ 
+ constructor() public {
+   owner = msg.sender;
+ }
+ 
+ function setCompleted(uint completed) public restricted {
+   last_completed_migration = completed;
+ }
+}
+
+Token.sol
+diretorio contracts, criar arquivo Token.sol
+
+pragma solidity 0.5.2;
+ 
+import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+ 
+contract Token is ERC20 {
+   string public name = "Sol token";
+   string public symbol = "SOLT";
+   uint8 public decimals = 2;
+   uint public INITIAL_SUPPLY = 150000;
+ 
+   constructor() public {
+       _mint(msg.sender, INITIAL_SUPPLY);
+   }
+}
+
+
+diretorio migrations, arquivo 2_deploy_contracts.js
+
+var Token = artifacts.require("Token");
+ 
+module.exports = function(deployer) {
+ deployer.deploy(Token);
+};
+
+No terminal
+truffle migrate
+
+
+src/js/app.js
+Substituir src/js/app.js
+
+App = {
+  web3Provider: null,
+  contracts: {},
+  
+  init: function() {
+    return App.initWeb3();
+  },
+  
+  initWeb3: async function() {
+    // Modern dapp browsers...
+    if (window.ethereum) {
+      App.web3Provider = window.ethereum;
+      try {
+        // Request account access
+        await window.ethereum.enable();
+      } catch (error) {
+        // User denied account access...
+        console.error("User denied account access")
+      }
+    }
+    // Legacy dapp browsers...
+    else if (window.web3) {
+      App.web3Provider = window.web3.currentProvider;
+    }
+    // If no injected web3 instance is detected, fall back to Ganache
+    else {
+      App.web3Provider = new Web3.providers.HttpProvider('http://localhost:8545');
+    }
+    web3 = new Web3(App.web3Provider);
+  
+    return App.initContract();
+  },
+  
+  initContract: function() {
+    $.getJSON('Token.json', function(data) {
+      // Get the necessary contract artifact file and instantiate it with truffle-contract.
+      var TokenArtifact = data;
+      App.contracts.Token = TruffleContract(TokenArtifact);
+  
+      // Set the provider for our contract.
+      App.contracts.Token.setProvider(App.web3Provider);
+  
+      App.getSymbol();
+      return App.getBalances();
+    });
+  
+    return App.bindEvents();
+  },
+  
+  bindEvents: function() {
+    $(document).on('click', '#transferButton', App.handleTransfer);
+  },
+  
+  handleTransfer: function(event) {
+    event.preventDefault();
+  
+    var amount = parseInt($('#TokenTransferAmount').val());
+    var toAddress = $('#TokenTransferAddress').val();
+  
+    console.log('Transfer ' + amount + ' tokens to ' + toAddress);
+    var tokenInstance;
+  
+    web3.eth.getAccounts(function(error, accounts) {
+      if (error) {
+        console.log(error);
+      }
+      var account = accounts[0];
+  
+      App.contracts.Token.deployed().then(function(instance) {
+        tokenInstance = instance;
+        return tokenInstance.transfer(toAddress, amount, {from: account, gas: 100000});
+      }).then(function(result) {
+        alert('Transfer Successful!');
+        return App.getBalances();
+      }).catch(function(err) {
+        console.log(err.message);
+      });
+    });
+  },
+  
+  getSymbol: function() {
+    console.log('Getting symbol...'); 
+    var tokenInstance;
+     web3.eth.getAccounts(function(error, accounts) {
+      if (error) {
+        console.log(error);
+      } 
+      var account = accounts[0];
+       App.contracts.Token.deployed().then(function(instance) {
+        tokenInstance = instance; 
+        return tokenInstance.symbol();
+      }).then(function(result) {
+        $('#TokenSymbol').text(result);
+      }).catch(function(err) {
+        console.log(err.message);
+      });
+    });
+  },
+  getBalances: function() {
+    console.log('Getting balances...');
+    var tokenInstance;
+  
+    web3.eth.getAccounts(function(error, accounts) {
+      if (error) {
+        console.log(error);
+      }
+      var account = accounts[0];
+  
+      App.contracts.Token.deployed().then(function(instance) {
+        tokenInstance = instance;
+        return tokenInstance.balanceOf(account);
+      }).then(function(result) {
+        balance = result.c[0];
+  
+        $('#TokenBalance').text(balance);
+      }).catch(function(err) {
+        console.log(err.message);
+      });
+    });
+  }
+  
+ };
+  
+ $(function() {
+  $(window).load(function() {
+    App.init();
+  });
+ });
+ 
+
+
+src/index.html
+Substituir src/index.html
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <title>Token - Wallet</title>
+
+    <!-- Bootstrap -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-xs-12 col-sm-8 col-sm-push-2">
+          <h1 class="text-center">Token Wallet</h1>
+          <hr/>
+          <br/>
+        </div>
+      </div>
+
+      <div id="petsRow" class="row">
+        <div class="col-sm-6 col-sm-push-3 col-md-4 col-md-push-4">
+          <div class="panel panel-default">
+            <div class="panel-heading">
+              <h3 class="panel-title">My Wallet</h3>
+            </div>
+            <div class="panel-body">
+              <h4>Balance</h4>
+              <strong>Balance</strong>: <span id="TokenBalance"></span> <span id="TokenSymbol"></span><br/><br/>
+              <h4>Transfer</h4>
+              <input type="text" class="form-control" id="TokenTransferAddress" placeholder="Address" />
+              <input type="text" class="form-control" id="TokenTransferAmount" placeholder="Amount" />
+              <button class="btn btn-primary" id="transferButton" type="button">Transfer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/web3.min.js"></script>
+    <script src="js/truffle-contract.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
+
+
+npm install
+
+Executar o frontend
+npm run dev
+
+
+
+Remix - Publicar na Ropsten
+
+Truffle Flattener
+Truffle Flattener concats solidity files developed under Truffle with all of their dependencies
+
+npm install truffle-flattener 
+
+Windows:
+.\node_modules\.bin\truffle-flattener ./contracts/Token.sol > .\contracts\Token-flat.sol
+
+Linux
+./node_modules/.bin/truffle-flattener ./contracts/Token.sol > ./contracts/Token-flat.sol
+
+
+Remix
+
+Criar Token.sol
+Colar conteudo de Token-flat.sol
+
+Metamask 
+escolher rede Ropsten
+
+No Remix alterar a versão do compilador para 0.5.2
+Alterar a versão do compilador para 0.5.2
+
+Em DEPLOY & RUN TRANSACTIONS
+Environment
+InjectedWeb3
+
+Escolher 
+Token - browser/Token.sol
+
+Deploy
+
+Transacoes
+
+Sol: 
+https://ropsten.etherscan.io/tx/0x29d72ec67eef344a7dce30be5556d360b7175853b107939b5328b42716f9fa4a
+
+Sergio : 
+https://ropsten.etherscan.io/tx/0x4093d3d35d68d4bd47af035e7f3f31f41029a8a57fb551ee00480a4405d8d9cf   
+
+Ulisses:
+https://ropsten.etherscan.io/tx/0x3dac9fba051391c790769c49e951efc13737d3aa6529411665edf7fc3602ccf2 
+
+GNETO 
+https://ropsten.etherscan.io/tx/0x51f769139fdc9eb3c818b35f17c0cc5485b5bad5d26dc1f34251a999ad004cc9
+contract 0xae9fd97e9ae0113299f2831e60e4aec3a7f5b281
+GNETO account  0xa2F57C06997A5AC6B5E0e3176E18178fC098112c 
+
+Paulo
+https://ropsten.etherscan.io/tx/0xefe792aba88239c0403285ee4cd7b78ab2f1053d5fa4367d99cbd8ab6528685a
+
+Wagner
+https://ropsten.etherscan.io/tx/0x4c3feae65f156870cb682a728b09115c018c29315414b0342db64a33260ba3dc
+
+Fabio
+https://ropsten.etherscan.io/tx/0xda53395276c9b16f6959909da9b46e41c35edcf4351f3500e2d0685d59281d78
+
+Alexandre
+https://ropsten.etherscan.io/tx/0x7ffb9c3cf2d0cd612ae2eea360cd6bc043a252e9f591599b9c1ab81bee9758c7
+
+Rafael
+https://ropsten.etherscan.io/tx/0x59f9e7af1f957afb058642249ab0e212f9245aa47c88daf18289821793b6d72e
+
+Adonai
+https://ropsten.etherscan.io/tx/0x4f1dff3fd94a6ed599e1e0fbfd2b69569288a08fa34c989e0f9f54243f520458
+
+Masson
+https://ropsten.etherscan.io/tx/0xd2120da6b5a54561c4e84751a8a60d078709736fd62a1a989639851a84679827
+
+Endereco do Token
+Sol - FiapT
+0x6368571dC7F34438e484D6C1aA2A407c347bec29
+ULISSES - FLS
+0x82c38FC3e330d5D24FF8B9B5582A13EB7C197879
+Paulo - MTN
+0x323dc1454ab6d951215c9c965fae99142e363b73
+Wagner
+0xAaEDF2615BE64d6108d594B56549Bcf844E8416e
+Sergio : SKYT
+0x3B462f890FC4290A0D385dc49cfBf06Db76FbACb
+Alexandre:
+0x04b191763126D46DCb58d7A44A92c8dEed5F5256
+Fabio:
+0x0F63bCFD952858A110E683fb09db6BCfBbfFe2B5
+Luciano:
+0xA9380100a76FAdcDAf3528E05CA3a19D82Ef8FE5
+Rafael
+0xb0b5da55f3e328f34d43ecaefc946e6388c31d8c
+Adonai - AMMT
+0x149faebf02909bd956ec756a841f0cd7b060cba5
+Masson
+0x35c613a9c1cd56930bfa9fd4b8683ee93df3b6e9
+
+guineitor
+https://ropsten.etherscan.io/tx/0x51f769139fdc9eb3c818b35f17c0cc5485b5bad5d26dc1f34251a999ad004cc9
+contract 0xae9fd97e9ae0113299f2831e60e4aec3a7f5b281
+GNETO account  0xa2F57C06997A5AC6B5E0e3176E18178fC098112c 
+
+
+
+Publicando o código fonte do smart contract no EtherScan
+Tab Contract
+Verify and Publish
+
+Single File
+Compiler 0.5.16
+
+Proxima tela
+Copiar o codigo fonte do smart contract, a partir do Remix
+
+
+Metamask
+Adicionar o token
+Menu
+Add Token
+Copiar o endereço do token
+
+
+Enderecos das carteiras do Metamask
+Sol
+0x27E2c17fdFe778eC84BC093Ef81231deD50deCe7
+ULISSES
+0x25c5651A68F5D1A5Ebd98eCb0Fdb562eB8167538
+Rafael
+0x2438cF70db79f32400a327DE70Bdea0e0C593d23
+Paulo
+0x1a65E13DD40d116C8d658dF30D071a36A1195396
+Fabio FABT
+0xbc264238A05aDdcAEabAF281da49D45Ff30ac172
+Sergio
+0xCDC8c4728F01987B414741fC46930e0Ec1eae72b
+Eduardo
+0x645Bfb543Ec6E06F227Ea355751B528f26dA5e03
+Masson
+0x3f57d5886ae0af954206756a3c2b9a92a4dd419e
+
+build/contracts/Token.json
+Atualizar build/contracts/Token.json
+Copiar a rede local 10101 e alterar para 3
+Alterar address e transactionHash
+
+   "3": {
+     "events": {...},
+     "links": {},
+     "address": "0x1D7cb96172D33991134Ce029bB0e6598100ee3CB",
+     "transactionHash": "0xd0fbf44ca10ae72a909d442618a32948a0911761cfc14fe2f26c5c160c98636b"
+   },
